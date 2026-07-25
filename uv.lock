@@ -3,18 +3,51 @@ revision = 3
 requires-python = ">=3.14"
 
 [[package]]
+name = "aiofiles"
+version = "25.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/c3/534eac40372d8ee36ef40df62ec129bee4fdb5ad9706e58a29be53b2c970/aiofiles-25.1.0.tar.gz", hash = "sha256:a8d728f0a29de45dc521f18f07297428d56992a742f0cd2701ba86e44d23d5b2", size = 46354, upload-time = "2025-10-09T20:51:04.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/8a/340a1555ae33d7354dbca4faa54948d76d89a27ceef032c8c3bc661d003e/aiofiles-25.1.0-py3-none-any.whl", hash = "sha256:abe311e527c862958650f9438e859c1fa7568a141b22abcd015e120e86a85695", size = 14668, upload-time = "2025-10-09T20:51:03.174Z" },
+]
+
+[[package]]
 name = "api-spankbang"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiofiles" },
+    { name = "chompjs" },
+    { name = "rich" },
     { name = "tqdm" },
     { name = "wreq" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiofiles", specifier = ">=25.1.0" },
+    { name = "chompjs", specifier = ">=1.4.1" },
+    { name = "rich", specifier = ">=15.0.0" },
     { name = "tqdm", specifier = ">=4.69.0" },
     { name = "wreq", specifier = ">=0.12.1" },
+]
+
+[[package]]
+name = "chompjs"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/f1/cbf1868cf274bfe2b35c43e160bba21b47ee2a85fd1ddd6247106b1e1859/chompjs-1.4.1.tar.gz", hash = "sha256:fc1a6d7f03fa6381351306a8cefaa5e0946e841c25fba919c726f35f1a3fc614", size = 17439, upload-time = "2026-05-17T22:08:08.33Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/77/23a0d12f16581918a8ded7f7ee5bb06e0e5fa2d10bb54e49a628730cb7e5/chompjs-1.4.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:daff5a9ca1dbe05becf3d0510be3bb8ce1904d6f0abdcf3631460db2c2a109ca", size = 17474, upload-time = "2026-05-17T22:07:50.614Z" },
+    { url = "https://files.pythonhosted.org/packages/85/cf/f9e5ad3d1b5779dee2f734ebebee8380148f558d01f34706a676b2e25d72/chompjs-1.4.1-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:58b61f8cdca5edd5ee909302b25f23afb1dd24794c947b86469c72156ef1d6b5", size = 33897, upload-time = "2026-05-17T22:07:51.771Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/da/9efeedc5897998746775ab58d95bca3a130b673c6be05a6620cea671dff3/chompjs-1.4.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:2f3f1c7b3d9d52efa6f7cb5b57a8967e1504cf329d8788ac3e7124b9d7138175", size = 33293, upload-time = "2026-05-17T22:07:52.92Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/42/2e60d483d536da8db6537e69f6ba19ce32abe8d5f0ed4f9e4b6d593b33cb/chompjs-1.4.1-cp314-cp314-win32.whl", hash = "sha256:191b4ed5d50b63023407b08823dd4cdbf734a418c9e35e1065efc9a7dabbaae6", size = 18041, upload-time = "2026-05-17T22:07:54.586Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/f4/5a3046ec9ded96d205613a41a901c2d5e70a415ed0b8d63d67586322b748/chompjs-1.4.1-cp314-cp314-win_amd64.whl", hash = "sha256:a910e9e8bb7fc8992b9f7679a0ec7eb072541a5dc823457598011118dcd7033b", size = 18846, upload-time = "2026-05-17T22:07:55.625Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/3b/96bffd874bf03245def38199367e1e52e8f3dc6b050084003f0c5989440a/chompjs-1.4.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:310c212c277bea6cf03c929637e27ece8b9b2fb6c2b1a414dc9cdf249db8c9b9", size = 17535, upload-time = "2026-05-17T22:07:56.741Z" },
+    { url = "https://files.pythonhosted.org/packages/83/03/255b5c9c116973a71584c0db336d0ff8b3d41059f549ef32b322b57514e1/chompjs-1.4.1-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:32677891ba45f786b82a074622a096f582365407ac86192ee876e21f33ad640a", size = 34019, upload-time = "2026-05-17T22:07:57.852Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/b9/91e7cb5b015007d0da773f7215267e009c2cba8b628d044d2921166d113d/chompjs-1.4.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:e5199b2001d670f1e2eab1a2d1ffbb787e38e9275544ca877b387a64abc60426", size = 33449, upload-time = "2026-05-17T22:07:59.1Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/06/8c8e165af1a5aaf75c1a90a15f730afc97929f828405696e0d7d7f0ba032/chompjs-1.4.1-cp314-cp314t-win32.whl", hash = "sha256:56fef5011bbe1539aa08dc38545655490655d6777bf638398a635fe3647c94e2", size = 18061, upload-time = "2026-05-17T22:08:00.156Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/8a/6d157e56f57ddc59d55a6bc9d474d70a75ca51dcd518f10137c0e7fef563/chompjs-1.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:014dc3c6da266a6a23c84abdf556fc5c3f9cf7fe62faa49f099a34eea41b91be", size = 18878, upload-time = "2026-05-17T22:08:01.266Z" },
 ]
 
 [[package]]
@@ -24,6 +57,49 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d8/53/6f443c9a4a8358a93a6792e2acffb9d9d5cb0a5cfd8802644b7b1c9a02e4/colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44", size = 27697, upload-time = "2022-10-25T02:36:22.414Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6", size = 25335, upload-time = "2022-10-25T02:36:20.889Z" },
+]
+
+[[package]]
+name = "markdown-it-py"
+version = "4.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/ff/7841249c247aa650a76b9ee4bbaeae59370dc8bfd2f6c01f3630c35eb134/markdown_it_py-4.2.0.tar.gz", hash = "sha256:04a21681d6fbb623de53f6f364d352309d4094dd4194040a10fd51833e418d49", size = 82454, upload-time = "2026-05-07T12:08:28.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl", hash = "sha256:9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a", size = 91687, upload-time = "2026-05-07T12:08:27.182Z" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "pygments"
+version = "2.20.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
+]
+
+[[package]]
+name = "rich"
+version = "15.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
 ]
 
 [[package]]
