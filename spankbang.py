@@ -1,207 +1,245 @@
 import ast
 import asyncio
+import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Final, List, Optional, Sequence
 
-from tqdm import tqdm
+import aiofiles
+from rich.console import Console
+from rich.logging import RichHandler
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 from wreq import Client, Emulation, Platform, Profile
 
 from url_tracker import filter_and_lock_urls
 
+# --- Configuration ---
+MIN_RESOLUTION: Final[int] = 720
+BASE_URL: Final[str] = "https://spankbang.party/"
 
-class TooSmallError(Exception):
-    """Raised when a value is smaller than the allowed minimum."""
+# Regex Patterns
+STREAM_DATA_PATTERN: Final[re.Pattern] = re.compile(r"var\s+stream_data\s*=\s*(\{.*?\});")
+VIDEO_DATE_PATTERN: Final[re.Pattern] = re.compile(r'<time[^>]*datetime="([^"]+)"')
+RESOLUTION_PATTERN: Final[re.Pattern] = re.compile(r"(\d+)p\.mp4")
 
-    pass
+# Headers
+SCRAPE_HEADERS: Final[dict] = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": BASE_URL,
+}
 
-
-urls = [
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-]
-
-MIN_RESOLUTION: int = 720
-BASE_URL = "https://spankbang.party/"
-STREAM_DATA_PATTERN = re.compile(r"var\s+stream_data\s*=\s*(\{.*?\});")
-VIDEO_DATE_PATTERN = re.compile(r'<time[^>]*datetime="([^"]+)"')
-DL_HEADERS = {
+DL_HEADERS: Final[dict] = {
     "Accept": "video/webm,video/ogg,video/*;q=0.9,application/ogg;q=0.7,audio/*;q=0.6,*/*;q=0.5",
     "Accept-Language": "en-US,en;q=0.9",
     "Range": "bytes=0-",
-    "Sec-Fetch-Storage-Access": "none",
-    "Sec-GPC": "1",
-    "Connection": "keep-alive",
     "Referer": BASE_URL,
     "Sec-Fetch-Dest": "video",
-    "Sec-Fetch-Mode": "no-cors",
-    "Sec-Fetch-Site": "cross-site",
-    "Priority": "u=4",
 }
 
 
-async def queue_manager(worker_id: int, queue: asyncio.Queue, client: Client, headers: dict, results: dict):
+@dataclass(frozen=True)
+class VideoMetadata:
+    """Immutable record of video information."""
 
-    while not queue.empty():
-        url = await queue.get()
-        raw_name = url.split("/")[-1]
-        name_ = raw_name.replace("+", "_")
-        print(f"[wkr {worker_id}] Fetching: {url}")
+    source_url: str
+    video_id: str
+    slug: str
+    display_name: str
+    stream_url: Optional[str] = None
+    date: str = "unknown_date"
+    resolution: int = 0
+
+    @property
+    def filename(self) -> str:
+        timestamp = datetime.now().strftime("%H%M%S")
+        return f"{self.display_name} [spankbang] ({self.date}) {timestamp}.mp4"
+
+
+class SpankBangApp:
+    """The master orchestrator for the SpankBang scraping and downloading process."""
+
+    def __init__(self, concurrency: int = 3):
+        self.console = Console()
+        self._setup_logging()
+        self.log = logging.getLogger("spankbang")
+        self.concurrency = concurrency
+        self.video_dir = Path("./videos")
+
+    def _setup_logging(self) -> None:
+        logging.basicConfig(
+            level="INFO",
+            format="%(message)s",
+            datefmt="[%X]",
+            handlers=[RichHandler(rich_tracebacks=True, console=self.console)],
+        )
+
+    def sanitize_filename(self, text: str) -> str:
+        """Removes filesystem-unsafe characters, collapses multiple separators, and strips edges."""
+        sanitized = re.sub(r"[^a-zA-Z0-9\-_]+", "_", text)
+        return sanitized.strip("_")
+
+
+    async def _fetch_metadata(self, client: Client, url: str) -> Optional[VideoMetadata]:
+        """Fetches and parses metadata for a single video URL."""
+        if not url:
+            return None
+
+        # Basic ID/Slug extraction
+        parts = url.rstrip("/").split("/")
+        if len(parts) < 3:
+            return None
+
+        video_id, slug = parts[-3], parts[-1]
+        name = self.sanitize_filename(slug)
 
         try:
-            resp = await client.get(url, headers=headers)
+            resp = await client.get(url, headers=SCRAPE_HEADERS)
+            if not resp.status.is_success():
+                self.log.error(f"Failed to fetch {url}: HTTP {resp.status}")
+                return None
 
-            if resp.status.is_success():
-                html = await resp.text()
+            html = await resp.text()
 
-                stream_match = STREAM_DATA_PATTERN.search(html)
-                result_dict = ast.literal_eval(stream_match.group(1)) if stream_match else None
-                stream_url = next(reversed(result_dict.values()))[0] if result_dict else None
-                if stream_url:
-                    first_half = stream_url.split(".mp4?")[0]
-                    end = first_half.rfind("-")
-                    resolution = first_half[end + 1 :]
-                    resolution = resolution[:-1]
-                    if int(resolution) < MIN_RESOLUTION:
-                        raise TooSmallError(f"{name_}:{resolution}p is too small; min is {MIN_RESOLUTION}p")
+            # Extract stream dictionary
+            stream_match = STREAM_DATA_PATTERN.search(html)
+            stream_url = None
+            resolution = 0
+            if stream_match:
+                # Use ast.literal_eval for JS object literal parsing as per constraints
+                data = ast.literal_eval(stream_match.group(1))
+                if data:
+                    stream_url = next(reversed(data.values()))[0]
+                    if stream_url:
+                        res_match = RESOLUTION_PATTERN.search(stream_url)
+                        resolution = int(res_match.group(1)) if res_match else 0
 
-                date_match = VIDEO_DATE_PATTERN.search(html)
-                video_date = date_match.group(1)[:10] if date_match else None
+            # Filter resolution early
+            if resolution < MIN_RESOLUTION:
+                self.log.info(f"[yellow]Skipping {name}: {resolution}p < {MIN_RESOLUTION}p[/]")
+                return None
 
-                results[name_] = {
-                    "url": stream_url,
-                    "date": video_date,
-                }
-            else:
-                results[name_] = None
-                print(f"[Warning: {worker_id}]  HTTP {resp.status} for {url}")
-        except TooSmallError as e:
-            results[name_] = None
-            print(e)
+            date_match = VIDEO_DATE_PATTERN.search(html)
+            date = date_match.group(1)[:10] if date_match else "unknown"
+
+            return VideoMetadata(
+                source_url=url,
+                video_id=video_id,
+                slug=slug,
+                display_name=name,
+                stream_url=stream_url,
+                date=date,
+                resolution=resolution,
+            )
 
         except Exception as e:
-            results[name_] = None
-            print(f"[Error {worker_id}]  processing {url}: {e}")
+            self.log.error(f"Metadata error for {url}: {e}")
+            return None
 
-        finally:
-            queue.task_done()
+    async def _download_worker(
+        self, client: Client, meta: VideoMetadata, progress: Progress, total_task_id: TaskID, semaphore: asyncio.Semaphore
+    ) -> None:
+        """Handles the actual file transfer for one video."""
+        if not meta.stream_url:
+            return
 
-        await asyncio.sleep(2)
+        out_path = self.video_dir / meta.filename
+        self.video_dir.mkdir(parents=True, exist_ok=True)
 
-
-async def scrape_pipeline(urls_list: list) -> dict:
-
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Range": "bytes=0-",
-        "Sec-Fetch-Storage-Access": "none",
-        "Sec-GPC": "1",
-        "Connection": "keep-alive",
-        "Referer": BASE_URL,
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigation",
-        "Sec-Fetch-Site": "same-origin",
-        "Priority": "u=0,i",
-    }
-
-    client = Client(emulation=Emulation(profile=Profile.Chrome140, platform=Platform.MacOS, headers=True))
-
-    queue = asyncio.Queue()
-    for url in urls_list:
-        if url:
-            await queue.put(url)
-
-    results = {}
-
-    num_workers = min(3, len(urls_list))
-
-    if num_workers == 0:
-        return results
-
-    print(f"Processing {len(urls_list)} URLs using {num_workers} parallel workers...")
-
-    workers = [asyncio.create_task(queue_manager(i, queue, client, headers, results)) for i in range(num_workers)]
-
-    await queue.join()
-
-    for worker in workers:
-        worker.cancel()
-
-    return results
-
-
-def generate_filename(name, date):
-    ext = "mp4"
-    timestamp = datetime.now().strftime("%H%M%S")
-    return f"{name} [spankbang] ({date}) {timestamp}.{ext}"
-
-
-async def download_many(video_data, concurrency=4):
-    client = Client(emulation=Emulation.random())
-    sem = asyncio.Semaphore(concurrency)
-
-    async def queue_manager(name_, url, date):
-        filename = generate_filename(name_, date)
-        async with sem:
-            resp = await client.get(url, headers=DL_HEADERS)
-
-            total = None
+        async with semaphore:
+            task_id = progress.add_task(f"[cyan]{meta.display_name[:25]}...", total=None)
             try:
-                video_length = resp.content_length
-                if video_length is not None:
-                    total = int(video_length)
-            except Exception:
-                pass
+                resp = await client.get(meta.stream_url, headers=DL_HEADERS)
+                if not resp.status.is_success():
+                    self.log.error(f"Download failed: {meta.display_name} (HTTP {resp.status})")
+                    return
 
-            out_path = Path(f"./videos/{filename}")
-            out_path.parent.mkdir(parents=True, exist_ok=True)
+                content_length = resp.content_length
+                total_size = int(content_length) if content_length is not None else None
+                progress.update(task_id, total=total_size)
 
-            with (
-                open(out_path, "wb") as f,
-                tqdm(
-                    desc=out_path.name,
-                    total=total,
-                    unit="B",
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    miniters=1,
-                    leave=True,
-                ) as bar,
-            ):
-                async with resp.stream() as streamer:
-                    async for chunk in streamer:
-                        if not chunk:
-                            continue
-                        f.write(chunk)
-                        bar.update(len(chunk))
+                async with aiofiles.open(out_path, "wb") as f:
+                    async with resp.stream() as streamer:
+                        async for chunk in streamer:
+                            if chunk:
+                                await f.write(chunk)
+                                progress.update(task_id, advance=len(chunk))
 
-    await asyncio.gather(*(queue_manager(name, url, date) for name, url, date in video_data))
+                self.log.info(f"[green]✓ Completed:[/] {meta.display_name}")
 
+            except Exception as e:
+                self.log.error(f"Transfer error for {meta.display_name}: {e}")
+            finally:
+                progress.update(total_task_id, advance=1)
+                progress.remove_task(task_id)
 
-async def process_sb(urls):
-    # Run the async pipeline loop
-    scraped_data = await scrape_pipeline(urls)
+    async def run(self, urls: Sequence[str]) -> None:
+        """Main entry point for the application logic."""
+        if not urls:
+            self.log.info("No URLs provided.")
+            return
 
-    video_data = [(name, inner["url"], inner["date"]) for name, inner in scraped_data.items() if inner]
+        # Phase 1: Scrape
+        self.log.info(f"Scraping metadata for {len(urls)} videos...")
+        async with Client(emulation=Emulation(profile=Profile.Chrome140, platform=Platform.MacOS, headers=True)) as client:
+            meta_tasks = [self._fetch_metadata(client, url) for url in urls]
+            results = await asyncio.gather(*meta_tasks)
 
-    await download_many(video_data)
+        valid_videos = [m for m in results if m and m.stream_url]
+
+        if not valid_videos:
+            self.log.warning("No downloadable videos.")
+            return
+
+        # Phase 2: Download
+        self.log.info(f"Downloading {len(valid_videos)} videos (concurrency={self.concurrency})...")
+
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+            console=self.console,
+            expand=True,
+        )
+
+        semaphore = asyncio.Semaphore(self.concurrency)
+
+        with progress:
+            total_task_id = progress.add_task("[yellow]Batch Progress", total=len(valid_videos))
+            async with Client(emulation=Emulation.random()) as dl_client:
+                dl_tasks = [
+                    self._download_worker(dl_client, meta, progress, total_task_id, semaphore) for meta in valid_videos
+                ]
+                await asyncio.gather(*dl_tasks)
 
 
 if __name__ == "__main__":
-    ready_urls = filter_and_lock_urls(urls, cooldown_hours=999999)
+    # Input URLs
+    raw_urls = [
+        "https://spankbang.party/646iw/video/cherycheryl",
+        "https://spankbang.party/74m8n/video/huge+natural+tits+ashlyn+peaks+masturbates+with+huge+dildo",
+        "https://spankbang.party/7u9ea/video/close+up+masturbation+by+raven+with+huge+natural+tits",
+    ]
 
-    if ready_urls:
-        asyncio.run(process_sb(ready_urls))
-    else:
-        print("❌ Zero URLs to process.")
+    # Pre-filter using url_tracker (assuming this handles locking/cooldowns)
+    ready_urls = filter_and_lock_urls(raw_urls, cooldown_hours=999999)
+
+    app = SpankBangApp(concurrency=3)
+    try:
+        asyncio.run(app.run(ready_urls))
+    except KeyboardInterrupt:
+        app.log.info("[bold red]Process aborted by user.[/]")
