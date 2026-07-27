@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final, List, Optional, Sequence
+from typing import Final, Optional, Sequence
 
 import aiofiles
 from rich.console import Console
@@ -38,6 +38,14 @@ SCRAPE_HEADERS: Final[dict] = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": BASE_URL,
+    "Range": "bytes=0-",
+    "Sec-Fetch-Storage-Access": "none",
+    "Sec-GPC": "1",
+    "Connection": "keep-alive",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigation",
+    "Sec-Fetch-Site": "same-origin",
+    "Priority": "u=0,i",
 }
 
 DL_HEADERS: Final[dict] = {
@@ -89,7 +97,6 @@ class SpankBangApp:
         """Removes filesystem-unsafe characters, collapses multiple separators, and strips edges."""
         sanitized = re.sub(r"[^a-zA-Z0-9\-_]+", "_", text)
         return sanitized.strip("_")
-
 
     async def _fetch_metadata(self, client: Client, url: str) -> Optional[VideoMetadata]:
         """Fetches and parses metadata for a single video URL."""
@@ -147,9 +154,7 @@ class SpankBangApp:
             self.log.error(f"Metadata error for {url}: {e}")
             return None
 
-    async def _download_worker(
-        self, client: Client, meta: VideoMetadata, progress: Progress, total_task_id: TaskID, semaphore: asyncio.Semaphore
-    ) -> None:
+    async def _download_worker(self, client: Client, meta: VideoMetadata, progress: Progress, total_task_id: TaskID, semaphore: asyncio.Semaphore) -> None:
         """Handles the actual file transfer for one video."""
         if not meta.stream_url:
             return
@@ -221,9 +226,7 @@ class SpankBangApp:
         with progress:
             total_task_id = progress.add_task("[yellow]Batch Progress", total=len(valid_videos))
             async with Client(emulation=Emulation.random()) as dl_client:
-                dl_tasks = [
-                    self._download_worker(dl_client, meta, progress, total_task_id, semaphore) for meta in valid_videos
-                ]
+                dl_tasks = [self._download_worker(dl_client, meta, progress, total_task_id, semaphore) for meta in valid_videos]
                 await asyncio.gather(*dl_tasks)
 
 
